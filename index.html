@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>檔案上傳工具</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 750px;
+            margin: 40px auto;
+            padding: 0 20px;
+            background-color: #f9f9f9;
+        }
+        .container {
+            background: #fff;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h2, h3 { margin-top: 0; color: #333; }
+        label { font-weight: bold; display: block; margin-top: 15px; margin-bottom: 5px; }
+        input[type="text"], input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            margin-top: 15px;
+            background-color: #1a73e8;
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            font-size: 15px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover { background-color: #1557b0; }
+        .btn-secondary { background-color: #5f6368; }
+        .btn-secondary:hover { background-color: #3c4043; }
+        #result { margin-top: 20px; padding: 10px; border-radius: 4px; display: none; }
+        .success { background-color: #e6f4ea; color: #137333; border: 1px solid #ceedd5; }
+        .error { background-color: #fce8e6; color: #c5221f; border: 1px solid #fad2cf; }
+
+        .alert-box {
+            background-color: #fef7e0;
+            color: #b06000;
+            border: 1px solid #fce8b2;
+            padding: 10px 14px;
+            border-radius: 4px;
+            font-size: 13px;
+            margin-top: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 6px;
+        }
+        .file-preview {
+            margin-top: 10px;
+            font-size: 13px;
+            color: #444;
+        }
+
+        .file-list-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        ul.file-list {
+            list-style: none;
+            padding: 0;
+            margin-top: 15px;
+            border-top: 1px solid #eee;
+        }
+        ul.file-list li {
+            padding: 12px 10px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .file-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        ul.file-list li a { color: #1a73e8; text-decoration: none; font-weight: bold; }
+        ul.file-list li a:hover { text-decoration: underline; }
+        .file-meta { font-size: 12px; color: #777; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>上傳檔案</h2>
+
+    <label for="fileInput">選擇檔案</label>
+    <input type="file" id="fileInput">
+    <p class="file-preview" style="margin-top: 6px; color: #666;">單檔上限 32 MB</p>
+
+    <label for="uploadFilename">檔案名稱（可選，留空則使用原檔名）</label>
+    <input type="text" id="uploadFilename" placeholder="例如: output.pdf, image.png">
+
+    <div id="filePreview" class="file-preview"></div>
+
+    <button onclick="uploadFile()">上傳檔案</button>
+
+    <div id="result"></div>
+</div>
+
+<div class="container">
+    <div class="file-list-header">
+        <h3>已上傳檔案清單</h3>
+        <button class="btn-secondary" onclick="fetchFileList()">重新整理</button>
+    </div>
+
+    <div class="alert-box">
+        <span>⚠️ 下載連結有效時間為 <strong>5 分鐘</strong>。若連結逾期，請點擊「重新整理」。</span>
+        <span>⚠️ 檔案將在 <strong>7 天</strong>後自動刪除，請及時下載。</span>
+    </div>
+
+    <ul id="fileList" class="file-list">
+        <li style="color: #888;">正在載入檔案清單...</li>
+    </ul>
+</div>
+
+<script>
+    // 空字串代表同源請求（頁面由後端 GET / 提供時使用）
+    const FUNCTION_URL = "";
+    const MAX_UPLOAD_BYTES = 32 * 1024 * 1024;
+
+    // 將位元組轉為可讀的檔案大小
+    function formatBytes(bytes, decimals = 2) {
+        if (!+bytes) return '0 Bytes';
+        const k = 1024;
+        const dm = decimals < 0 ? 0 : decimals;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+    }
+
+    // GCS 回傳 UTC 時間，轉成台灣時間顯示
+    function formatToGMT8(isoString) {
+        if (!isoString) return '未知時間';
+        const date = new Date(isoString);
+        return date.toLocaleString('zh-TW', {
+            timeZone: 'Asia/Taipei',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        });
+    }
+
+    function showResult(message, isSuccess, isLoading = false) {
+        const resultDiv = document.getElementById('result');
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = message;
+
+        if (isLoading) {
+            // 上傳進行中，使用藍色提示樣式
+            resultDiv.className = '';
+            resultDiv.style.backgroundColor = '#e8f0fe';
+            resultDiv.style.color = '#1a73e8';
+        } else {
+            resultDiv.className = isSuccess ? 'success' : 'error';
+        }
+    }
+
+    // 點擊檔名欄位時全選，方便快速改名
+    document.getElementById('uploadFilename').addEventListener('focus', function () {
+        this.select();
+    });
+
+    document.getElementById('fileInput').addEventListener('change', function () {
+        const file = this.files[0];
+        const preview = document.getElementById('filePreview');
+        const filenameInput = document.getElementById('uploadFilename');
+
+        if (!file) {
+            preview.textContent = '';
+            return;
+        }
+
+        if (file.size > MAX_UPLOAD_BYTES) {
+            this.value = '';
+            filenameInput.value = '';
+            preview.textContent = '';
+            showResult('❌ 檔案大小不得超過 32 MB！', false);
+            return;
+        }
+
+        filenameInput.value = file.name;
+
+        preview.textContent = `已選擇：${file.name}（${formatBytes(file.size)}）`;
+    });
+
+    async function uploadFile() {
+        const fileInput = document.getElementById('fileInput');
+        const file = fileInput.files[0];
+        const customFilename = document.getElementById('uploadFilename').value.trim();
+
+        if (!file) {
+            showResult('請選擇要上傳的檔案！', false);
+            return;
+        }
+
+        if (file.size > MAX_UPLOAD_BYTES) {
+            showResult('❌ 檔案大小不得超過 32 MB！', false);
+            return;
+        }
+
+        const filename = customFilename || file.name;
+        showResult('上傳中，請稍候...', true, true);
+
+        try {
+            const formData = new FormData();
+            formData.append('file', file, file.name);
+            formData.append('filename', filename);
+
+            // 不手動設 Content-Type，讓瀏覽器自動加上 multipart boundary
+            const response = await fetch(FUNCTION_URL, {
+                method: 'POST',
+                body: formData
+            });
+
+            const resData = await response.json();
+
+            if (response.ok) {
+                showResult(`✅ ${resData.message}`, true);
+                fileInput.value = '';
+                document.getElementById('uploadFilename').value = '';
+                document.getElementById('filePreview').textContent = '';
+                fetchFileList();
+            } else {
+                showResult(`❌ 錯誤: ${resData.error}`, false);
+            }
+        } catch (err) {
+            showResult(`❌ 連線失敗: ${err.message}`, false);
+        }
+    }
+
+    // 向後端取得檔案清單，動態建立下載連結
+    async function fetchFileList() {
+        const fileListElement = document.getElementById('fileList');
+        fileListElement.innerHTML = '<li style="color: #888;">載入中...</li>';
+
+        try {
+            const response = await fetch(FUNCTION_URL + '?action=list', { method: 'GET' });
+            const resData = await response.json();
+
+            if (response.ok) {
+                if (resData.files.length === 0) {
+                    fileListElement.innerHTML = '<li style="color: #888;">目前沒有檔案。</li>';
+                    return;
+                }
+
+                fileListElement.innerHTML = '';
+                resData.files.forEach(file => {
+                    const li = document.createElement('li');
+
+                    const fileInfo = document.createElement('div');
+                    fileInfo.className = 'file-info';
+
+                    // download_url 為後端簽名的 GCS 連結，有效 5 分鐘
+                    const link = document.createElement('a');
+                    link.href = file.download_url;
+                    link.target = '_blank';
+                    link.textContent = file.name;
+                    link.title = '點擊下載';
+
+                    const timeMeta = document.createElement('span');
+                    timeMeta.className = 'file-meta';
+                    timeMeta.textContent = `上傳時間: ${formatToGMT8(file.updated)}`;
+
+                    fileInfo.appendChild(link);
+                    fileInfo.appendChild(timeMeta);
+
+                    const sizeMeta = document.createElement('span');
+                    sizeMeta.className = 'file-meta';
+                    sizeMeta.textContent = formatBytes(file.size);
+
+                    li.appendChild(fileInfo);
+                    li.appendChild(sizeMeta);
+                    fileListElement.appendChild(li);
+                });
+            } else {
+                fileListElement.innerHTML = `<li style="color: red;">載入失敗: ${resData.error}</li>`;
+            }
+        } catch (err) {
+            fileListElement.innerHTML = `<li style="color: red;">連線失敗: ${err.message}</li>`;
+        }
+    }
+
+    window.onload = fetchFileList;
+</script>
+
+</body>
+</html>
