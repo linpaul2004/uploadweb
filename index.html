@@ -91,7 +91,74 @@
         ul.file-list li a:hover { text-decoration: underline; }
         .file-meta { font-size: 12px; color: #777; }
     </style>
-    <link rel=stylesheet type="text/css" href="warn.css">
+    <!-- style for warning -->
+    <style>
+        /* 覆蓋整個螢幕的半透明黑色背景 */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999; /* 確保在最上層 */
+        }
+
+        /* 視窗本體 */
+        .modal-box {
+            background: #fff;
+            padding: 24px 32px;
+            border-radius: 8px;
+            width: 450px;
+            max-width: 90%;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            font-family: sans-serif;
+        }
+
+        .modal-title {
+            margin-top: 0;
+            color: #d9534f;
+            font-size: 20px;
+        }
+
+        .modal-body {
+            line-height: 1.6;
+            color: #333;
+            margin-bottom: 24px;
+        }
+
+        /* 按鈕區域 */
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        .modal-footer button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .btn-cancel {
+            background: #e0e0e0;
+            color: #333;
+        }
+        .btn-cancel:hover { background: #d0d0d0; }
+
+        .btn-confirm {
+            background: #d9534f;
+            color: white;
+        }
+        .btn-confirm:hover { background: #c9302c; }
+    </style>
+
 </head>
 <body>
 
