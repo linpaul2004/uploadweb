@@ -91,6 +91,7 @@
         ul.file-list li a:hover { text-decoration: underline; }
         .file-meta { font-size: 12px; color: #777; }
     </style>
+    <link rel=stylesheet type="text/css" href="warn.css">
 </head>
 <body>
 
@@ -127,7 +128,60 @@
     </ul>
 </div>
 
+<div id="custom-confirm-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+        <h3 class="modal-title">⚠️ 檔案覆蓋警告</h3>
+        <div id="modal-content-body" class="modal-body">
+            <!-- 內容會透過 JS 動態塞入 -->
+        </div>
+        <div class="modal-footer">
+            <button id="modal-btn-cancel" class="btn-cancel">取消</button>
+            <button id="modal-btn-confirm" class="btn-confirm">確認覆蓋</button>
+        </div>
+    </div>
+</div>
+
 <script>
+    function showCustomConfirm(existingFile, newFileName, newFileSizeStr) {
+        return new Promise((resolve) => {
+            const modal = document.getElementById('custom-confirm-modal');
+            const contentBody = document.getElementById('modal-content-body');
+            const btnConfirm = document.getElementById('modal-btn-confirm');
+            const btnCancel = document.getElementById('modal-btn-cancel');
+
+            // 組裝要顯示的 HTML 內容
+            contentBody.innerHTML = `
+                <p>以下檔案將被覆蓋：</p>
+                <div style="background: #f8f9fa; padding: 10px; border-radius: 4px; margin-bottom: 10px;">
+                    <strong>【原有檔案】</strong><br>
+                    檔名：${existingFile.name}<br>
+                    大小：${existingFile.size}
+                </div>
+                <div style="background: #fff3cd; padding: 10px; border-radius: 4px;">
+                    <strong>【新上傳檔案】</strong><br>
+                    檔名：${newFileName}<br>
+                    大小：${newFileSizeStr}
+                </div>
+                <p style="margin-top: 15px; font-weight: bold;">是否繼續上傳？</p>
+            `;
+
+            // 顯示視窗
+            modal.style.display = 'flex';
+
+            // 綁定確認按鈕事件
+            btnConfirm.onclick = () => {
+                modal.style.display = 'none';
+                resolve(true); // 回傳 true
+            };
+
+            // 綁定取消按鈕事件
+            btnCancel.onclick = () => {
+                modal.style.display = 'none';
+                resolve(false); // 回傳 false
+            };
+        });
+    }
+
     // 空字串代表同源請求（頁面由後端 GET / 提供時使用）
     const FUNCTION_URL = "";
     const MAX_UPLOAD_BYTES = Number('{{MAX_UPLOAD_BYTES}}');
@@ -174,6 +228,11 @@
         }
     }
 
+    function clearResult() {
+        const resultDiv = document.getElementById('result');
+        resultDiv.style.display = 'none';
+    }
+
     // 點擊檔名欄位時全選，方便快速改名
     document.getElementById('uploadFilename').addEventListener('focus', function () {
         this.select();
@@ -183,6 +242,8 @@
         const file = this.files[0];
         const preview = document.getElementById('filePreview');
         const filenameInput = document.getElementById('uploadFilename');
+
+        clearResult();
 
         if (!file) {
             preview.textContent = '';
@@ -246,16 +307,8 @@
 
         const existingFile = findExistingFileInList(filename);
         if (existingFile) {
-            const confirmed = confirm(
-                `以下檔案將被覆蓋：\n\n` +
-                `【原有檔案】\n` +
-                `檔名：${existingFile.name}\n` +
-                `大小：${existingFile.size}\n\n` +
-                `【新上傳檔案】\n` +
-                `檔名：${filename}\n` +
-                `大小：${formatBytes(file.size)}\n\n` +
-                `是否繼續上傳？`
-            );
+            const confirmed = await showCustomConfirm(existingFile, filename, formatBytes(file.size));
+
             if (!confirmed) {
                 return;
             }

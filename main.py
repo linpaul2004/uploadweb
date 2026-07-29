@@ -65,7 +65,7 @@ def upload_file_to_gcs(bucket, filename, file_obj):
     if content_type:
         blob.content_type = content_type
 
-    blob.upload_from_file(file_obj, rewind=True, content_type=content_type)
+    blob.upload_from_file(file_obj, rewind=True)
     blob.reload()
 
     if not blob.exists():
