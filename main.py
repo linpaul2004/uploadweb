@@ -2,6 +2,7 @@ import json
 import datetime
 import mimetypes
 import os
+from urllib.parse import quote
 import functions_framework
 from google.cloud import storage
 import google.auth
@@ -39,6 +40,11 @@ def _get_stream_size(file_obj):
     file_obj.seek(0)
     return size
 
+def _attachment_disposition(filename):
+    quoted = quote(filename)
+    safe_filename = filename.replace('"', '\\"')
+    return f'attachment; filename="{safe_filename}"; filename*=UTF-8\'\'{quoted}'
+
 def _generate_download_url(blob):
     if not credentials.valid:
         credentials.refresh(google.auth.transport.requests.Request())
@@ -47,6 +53,7 @@ def _generate_download_url(blob):
         version="v4",
         expiration=datetime.timedelta(minutes=DOWNLOAD_LINK_LAST_MIN),
         method="GET",
+        response_disposition=_attachment_disposition(blob.name),
         service_account_email=credentials.service_account_email,
         access_token=credentials.token
     )
