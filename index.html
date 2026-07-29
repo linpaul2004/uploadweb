@@ -202,6 +202,31 @@
         preview.textContent = `已選擇：${file.name}（${formatBytes(file.size)}）`;
     });
 
+    function findExistingFileInList(filename) {
+        const fileListElement = document.getElementById('fileList');
+        for (const li of fileListElement.querySelectorAll('li')) {
+            const link = li.querySelector('a');
+            if (link && link.textContent === filename) {
+                const sizeSpan = li.querySelector(':scope > .file-meta');
+                return {
+                    name: filename,
+                    size: sizeSpan ? sizeSpan.textContent : '未知大小'
+                };
+            }
+        }
+        return null;
+    }
+
+    function removeFileFromList(filename) {
+        const fileListElement = document.getElementById('fileList');
+        fileListElement.querySelectorAll('li').forEach(li => {
+            const link = li.querySelector('a');
+            if (link && link.textContent === filename) {
+                li.remove();
+            }
+        });
+    }
+
     async function uploadFile() {
         const fileInput = document.getElementById('fileInput');
         const file = fileInput.files[0];
@@ -218,6 +243,24 @@
         }
 
         const filename = customFilename || file.name;
+
+        const existingFile = findExistingFileInList(filename);
+        if (existingFile) {
+            const confirmed = confirm(
+                `以下檔案將被覆蓋：\n\n` +
+                `【原有檔案】\n` +
+                `檔名：${existingFile.name}\n` +
+                `大小：${existingFile.size}\n\n` +
+                `【新上傳檔案】\n` +
+                `檔名：${filename}\n` +
+                `大小：${formatBytes(file.size)}\n\n` +
+                `是否繼續上傳？`
+            );
+            if (!confirmed) {
+                return;
+            }
+        }
+
         showResult('上傳中，請稍候...', true, true);
 
         try {
@@ -285,6 +328,7 @@
             fileListElement.innerHTML = '';
         }
 
+        removeFileFromList(file.name);
         fileListElement.prepend(createFileListItem(file));
     }
 
