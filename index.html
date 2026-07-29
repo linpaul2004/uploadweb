@@ -99,7 +99,7 @@
 
     <label for="fileInput">選擇檔案</label>
     <input type="file" id="fileInput">
-    <p class="file-preview" style="margin-top: 6px; color: #666;">單檔上限 32 MB</p>
+    <p class="file-preview" style="margin-top: 6px; color: #666;">單檔上限 {{MAX_UPLOAD_MB}} MB</p>
 
     <label for="uploadFilename">檔案名稱（可選，留空則使用原檔名）</label>
     <input type="text" id="uploadFilename" placeholder="例如: output.pdf, image.png">
@@ -118,7 +118,7 @@
     </div>
 
     <div class="alert-box">
-        <span>⚠️ 下載連結有效時間為 <strong>5 分鐘</strong>。若連結逾期，請點擊「重新整理」。</span>
+        <span>⚠️ 下載連結有效時間為 <strong>{{DOWNLOAD_LINK_LAST_MIN}} 分鐘</strong>。若連結逾期，請點擊「重新整理」。</span>
         <span>⚠️ 檔案將在 <strong>7 天</strong>後自動刪除，請及時下載。</span>
     </div>
 
@@ -130,7 +130,8 @@
 <script>
     // 空字串代表同源請求（頁面由後端 GET / 提供時使用）
     const FUNCTION_URL = "";
-    const MAX_UPLOAD_BYTES = 32 * 1024 * 1024;
+    const MAX_UPLOAD_BYTES = Number('{{MAX_UPLOAD_BYTES}}');
+    const MAX_UPLOAD_MB = Number('{{MAX_UPLOAD_MB}}');
 
     // 將位元組轉為可讀的檔案大小
     function formatBytes(bytes, decimals = 2) {
@@ -192,7 +193,7 @@
             this.value = '';
             filenameInput.value = '';
             preview.textContent = '';
-            showResult('❌ 檔案大小不得超過 32 MB！', false);
+            showResult(`❌ 檔案大小不得超過 ${MAX_UPLOAD_MB} MB！`, false);
             return;
         }
 
@@ -212,7 +213,7 @@
         }
 
         if (file.size > MAX_UPLOAD_BYTES) {
-            showResult('❌ 檔案大小不得超過 32 MB！', false);
+            showResult(`❌ 檔案大小不得超過 ${MAX_UPLOAD_MB} MB！`, false);
             return;
         }
 
@@ -237,13 +238,54 @@
                 fileInput.value = '';
                 document.getElementById('uploadFilename').value = '';
                 document.getElementById('filePreview').textContent = '';
-                fetchFileList();
+                if (resData.file) {
+                    prependFileToList(resData.file);
+                }
             } else {
                 showResult(`❌ 錯誤: ${resData.error}`, false);
             }
         } catch (err) {
             showResult(`❌ 連線失敗: ${err.message}`, false);
         }
+    }
+
+    function createFileListItem(file) {
+        const li = document.createElement('li');
+
+        const fileInfo = document.createElement('div');
+        fileInfo.className = 'file-info';
+
+        const link = document.createElement('a');
+        link.href = file.download_url;
+        link.target = '_blank';
+        link.textContent = file.name;
+        link.title = '點擊下載';
+
+        const timeMeta = document.createElement('span');
+        timeMeta.className = 'file-meta';
+        timeMeta.textContent = `上傳時間: ${formatToGMT8(file.updated)}`;
+
+        fileInfo.appendChild(link);
+        fileInfo.appendChild(timeMeta);
+
+        const sizeMeta = document.createElement('span');
+        sizeMeta.className = 'file-meta';
+        sizeMeta.textContent = formatBytes(file.size);
+
+        li.appendChild(fileInfo);
+        li.appendChild(sizeMeta);
+        return li;
+    }
+
+    function prependFileToList(file) {
+        const fileListElement = document.getElementById('fileList');
+        const placeholder = fileListElement.querySelector('li[style*="color: #888"]');
+
+        if (placeholder && fileListElement.children.length === 1) {
+            fileListElement.innerHTML = '';
+        }
+
+        fileListElement.prepend(createFileListItem(file));
     }
 
     // 向後端取得檔案清單，動態建立下載連結
@@ -263,32 +305,7 @@
 
                 fileListElement.innerHTML = '';
                 resData.files.forEach(file => {
-                    const li = document.createElement('li');
-
-                    const fileInfo = document.createElement('div');
-                    fileInfo.className = 'file-info';
-
-                    // download_url 為後端簽名的 GCS 連結，有效 5 分鐘
-                    const link = document.createElement('a');
-                    link.href = file.download_url;
-                    link.target = '_blank';
-                    link.textContent = file.name;
-                    link.title = '點擊下載';
-
-                    const timeMeta = document.createElement('span');
-                    timeMeta.className = 'file-meta';
-                    timeMeta.textContent = `上傳時間: ${formatToGMT8(file.updated)}`;
-
-                    fileInfo.appendChild(link);
-                    fileInfo.appendChild(timeMeta);
-
-                    const sizeMeta = document.createElement('span');
-                    sizeMeta.className = 'file-meta';
-                    sizeMeta.textContent = formatBytes(file.size);
-
-                    li.appendChild(fileInfo);
-                    li.appendChild(sizeMeta);
-                    fileListElement.appendChild(li);
+                    fileListElement.appendChild(createFileListItem(file));
                 });
             } else {
                 fileListElement.innerHTML = `<li style="color: red;">載入失敗: ${resData.error}</li>`;

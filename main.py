@@ -1,5 +1,6 @@
 import json
 import datetime
+import mimetypes
 import os
 import functions_framework
 from google.cloud import storage
@@ -15,23 +16,62 @@ credentials, project = google.auth.default()
 # GCS Bucket 名稱（由環境變數 BUCKET_NAME 提供）
 BUCKET_NAME = os.environ['BUCKET_NAME']
 
-# 下載連結維持時間
+# 下載連結維持時間（分）
 DOWNLOAD_LINK_LAST_MIN = 5
 
-# 上傳檔案大小上限（32 MB）
-MAX_UPLOAD_BYTES = 32 * 1024 * 1024
+# 上傳檔案大小上限（MB）
+MAX_UPLOAD_MB = 32
+MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 
 def get_html_content():
     with open('index.html', 'r', encoding='utf-8') as f:
-        return f.read()
+        content = f.read()
+    return (
+        content
+        .replace('{{DOWNLOAD_LINK_LAST_MIN}}', str(DOWNLOAD_LINK_LAST_MIN))
+        .replace('{{MAX_UPLOAD_MB}}', str(MAX_UPLOAD_MB))
+        .replace('{{MAX_UPLOAD_BYTES}}', str(MAX_UPLOAD_BYTES))
+    )
 
-def upload_bytes_to_gcs(bucket, filename, file_bytes):
+def _get_stream_size(file_obj):
+    file_obj.seek(0, os.SEEK_END)
+    size = file_obj.tell()
+    file_obj.seek(0)
+    return size
+
+def _generate_download_url(blob):
+    if not credentials.valid:
+        credentials.refresh(google.auth.transport.requests.Request())
+
+    return blob.generate_signed_url(
+        version="v4",
+        expiration=datetime.timedelta(minutes=DOWNLOAD_LINK_LAST_MIN),
+        method="GET",
+        service_account_email=credentials.service_account_email,
+        access_token=credentials.token
+    )
+
+def upload_file_to_gcs(bucket, filename, file_obj):
+    content_type, _ = mimetypes.guess_type(filename)
+
     blob = bucket.blob(filename)
-    blob.upload_from_string(file_bytes)
+    if content_type:
+        blob.content_type = content_type
+
+    blob.upload_from_file(file_obj, rewind=True, content_type=content_type)
+    blob.reload()
+
+    if not blob.exists():
+        raise RuntimeError('上傳後無法在 GCS 找到檔案')
+
     return {
         'message': '檔案已成功上傳！',
-        'filename': filename,
-        'gcs_uri': f'gs://{BUCKET_NAME}/{filename}'
+        'file': {
+            'name': filename,
+            'size': blob.size,
+            'updated': blob.updated.isoformat() if blob.updated else None,
+            'download_url': _generate_download_url(blob)
+        }
     }
 
 @functions_framework.http
@@ -42,29 +82,15 @@ def main(request):
         # ?action=list → 回傳 JSON 檔案清單；否則回傳上傳頁面
         if request.args.get('action') == 'list':
             try:
-                # 簽名 URL 需要有效的 access token
-                if not credentials.valid:
-                    credentials.refresh(google.auth.transport.requests.Request())
-
                 blobs = bucket.list_blobs()
                 file_list = []
-                service_account_email = credentials.service_account_email
 
                 for blob in blobs:
-                    # 產生有時效的下載連結，無需將 bucket 設為公開
-                    download_url = blob.generate_signed_url(
-                        version="v4",
-                        expiration=datetime.timedelta(minutes=DOWNLOAD_LINK_LAST_MIN),
-                        method="GET",
-                        service_account_email=service_account_email,
-                        access_token=credentials.token
-                    )
-
                     file_list.append({
                         'name': blob.name,
                         'size': blob.size,
                         'updated': blob.updated.isoformat() if blob.updated else None,
-                        'download_url': download_url
+                        'download_url': _generate_download_url(blob)
                     })
 
                 # 依上傳時間排序，最新的在最前面
@@ -92,12 +118,15 @@ def main(request):
             return (json.dumps({'error': '缺少檔案名稱'}), 400, {'Content-Type': 'application/json'})
 
         try:
-            file_bytes = uploaded_file.read()
+            file_size = _get_stream_size(uploaded_file.stream)
+            if file_size > MAX_UPLOAD_BYTES:
+                return (
+                    json.dumps({'error': f'檔案大小不得超過 {MAX_UPLOAD_MB} MB'}),
+                    400,
+                    {'Content-Type': 'application/json'}
+                )
 
-            if len(file_bytes) > MAX_UPLOAD_BYTES:
-                return (json.dumps({'error': '檔案大小不得超過 32 MB'}), 400, {'Content-Type': 'application/json'})
-
-            result = upload_bytes_to_gcs(bucket, filename, file_bytes)
+            result = upload_file_to_gcs(bucket, filename, uploaded_file.stream)
             return (json.dumps(result), 200, {'Content-Type': 'application/json'})
         except Exception as e:
             return (json.dumps({'error': f'處理失敗: {str(e)}'}), 500, {'Content-Type': 'application/json'})
