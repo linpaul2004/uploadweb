@@ -20,17 +20,14 @@ BUCKET_NAME = os.environ['BUCKET_NAME']
 # 下載連結維持時間（分）
 DOWNLOAD_LINK_LAST_MIN = 5
 
-# 上傳檔案大小上限（MB）
-MAX_UPLOAD_MB = 32
-MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
+# 上傳檔案大小上限
+MAX_UPLOAD_BYTES = 32 * 1024 * 1024
 
 def get_html_content():
     with open('index.html', 'r', encoding='utf-8') as f:
         content = f.read()
     return (
         content
-        .replace('{{DOWNLOAD_LINK_LAST_MIN}}', str(DOWNLOAD_LINK_LAST_MIN))
-        .replace('{{MAX_UPLOAD_MB}}', str(MAX_UPLOAD_MB))
         .replace('{{MAX_UPLOAD_BYTES}}', str(MAX_UPLOAD_BYTES))
     )
 
@@ -140,7 +137,7 @@ def main(request):
             file_size = _get_stream_size(uploaded_file.stream)
             if file_size > MAX_UPLOAD_BYTES:
                 return (
-                    json.dumps({'error': f'檔案大小不得超過 {MAX_UPLOAD_MB} MB'}),
+                    json.dumps({'error': f'檔案大小不得超過 {MAX_UPLOAD_BYTES // (1024 * 1024)} MB'}),
                     400,
                     {'Content-Type': 'application/json'}
                 )
