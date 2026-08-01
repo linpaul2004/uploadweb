@@ -184,7 +184,7 @@
 
     <label for="fileInput">選擇檔案</label>
     <input type="file" id="fileInput">
-    <p class="file-preview" style="margin-top: 6px; color: #666;">單檔上限 {{MAX_UPLOAD_MB}} MB</p>
+    <p id="limitText" class="file-preview" style="margin-top: 6px; color: #666;"></p>
 
     <label for="uploadFilename">檔案名稱（可選，留空則使用原檔名）</label>
     <input type="text" id="uploadFilename" placeholder="例如: output.pdf, image.png">
@@ -272,7 +272,7 @@
     // 空字串代表同源請求（頁面由後端 GET / 提供時使用）
     const FUNCTION_URL = "";
     const MAX_UPLOAD_BYTES = Number('{{MAX_UPLOAD_BYTES}}');
-    const MAX_UPLOAD_MB = Number('{{MAX_UPLOAD_MB}}');
+    const FILE_LIMIT = formatBytes(MAX_UPLOAD_BYTES);
 
     // 將位元組轉為可讀的檔案大小
     function formatBytes(bytes, decimals = 2) {
@@ -341,7 +341,7 @@
             this.value = '';
             filenameInput.value = '';
             preview.textContent = '';
-            showResult(`❌ 檔案大小不得超過 ${MAX_UPLOAD_MB} MB！`, false);
+            showResult(`❌ 檔案大小不得超過 ${FILE_LIMIT}！`, false);
             return;
         }
 
@@ -386,7 +386,7 @@
         }
 
         if (file.size > MAX_UPLOAD_BYTES) {
-            showResult(`❌ 檔案大小不得超過 ${MAX_UPLOAD_MB} MB！`, false);
+            showResult(`❌ 檔案大小不得超過 ${FILE_LIMIT}！`, false);
             return;
         }
 
@@ -527,6 +527,9 @@
             fileListElement.innerHTML = `<li style="color: red;">連線失敗: ${err.message}</li>`;
         }
     }
+
+    const limitText = document.getElementById('limitText');
+    limitText.textContent = `單檔上限 ${FILE_LIMIT}`;
 
     window.onload = fetchFileList;
 </script>

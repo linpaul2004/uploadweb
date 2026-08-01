@@ -1,6 +1,6 @@
 [project]
 name = "uploadweb"
-version = "1.2.0"
+version = "1.2.1"
 description = "A file upload tool for personal use. It allows users to upload files through a web page to Google Cloud Storage (GCS) and provides temporary download links."
 readme = "README.md"
 requires-python = ">=3.14"
