@@ -41,8 +41,6 @@
             cursor: pointer;
         }
         button:hover { background-color: #1557b0; }
-        .btn-secondary { background-color: #5f6368; }
-        .btn-secondary:hover { background-color: #3c4043; }
         #result { margin-top: 20px; padding: 10px; border-radius: 4px; display: none; }
         .success { background-color: #e6f4ea; color: #137333; border: 1px solid #ceedd5; }
         .error { background-color: #fce8e6; color: #c5221f; border: 1px solid #fad2cf; }
@@ -53,7 +51,7 @@
             border: 1px solid #fce8b2;
             padding: 10px 14px;
             border-radius: 4px;
-            font-size: 13px;
+            font-size: 15px;
             margin-top: 10px;
             display: flex;
             flex-direction: column;
@@ -200,13 +198,11 @@
 
 <div class="container">
     <div class="file-list-header">
-        <h3>已上傳檔案清單</h3>
-        <button class="btn-secondary" onclick="fetchFileList()">重新整理</button>
+        <h3 style="margin-bottom: 0;">已上傳檔案清單</h3>
     </div>
 
     <div class="alert-box">
-        <span>⚠️ 下載連結有效時間為 <strong>{{DOWNLOAD_LINK_LAST_MIN}} 分鐘</strong>。若連結逾期，請點擊「重新整理」。</span>
-        <span>⚠️ 檔案將在 <strong>7 天</strong>後自動刪除，請及時下載。</span>
+        <span>⚠️ 檔案將在 <strong>7 天</strong> 後自動刪除，請及時下載。</span>
     </div>
 
     <ul id="fileList" class="file-list">
@@ -443,10 +439,39 @@
         fileInfo.className = 'file-info';
 
         const link = document.createElement('a');
-        link.href = file.download_url;
-        link.download = '';
+        link.href = '#';
         link.textContent = file.name;
-        link.title = '點擊下載';
+        link.title = '點擊取得下載連結';
+
+        // 點擊事件：按需求取得連結
+        link.onclick = async function(e) {
+            e.preventDefault(); // 防止預設的 <a> 標籤跳轉行為
+
+            const originalText = link.textContent;
+            link.textContent = '⏳ 取得連結中...';
+            link.style.pointerEvents = 'none'; // 避免使用者重複點擊
+
+            try {
+                // 以 action=get_url 的接口來獲取單一檔案連結
+                const response = await fetch(`${FUNCTION_URL}?action=get_url&filename=${encodeURIComponent(file.name)}`, {
+                    method: 'GET'
+                });
+                const resData = await response.json();
+
+                if (response.ok && resData.download_url) {
+                    // 取得連結後，觸發下載跳轉
+                    window.location.href = resData.download_url;
+                } else {
+                    alert(`❌ 取得連結失敗: ${resData.error || '未知錯誤'}`);
+                }
+            } catch (err) {
+                alert(`❌ 連線失敗: ${err.message}`);
+            } finally {
+                // 恢復原狀
+                link.textContent = originalText;
+                link.style.pointerEvents = 'auto';
+            }
+        };
 
         const timeMeta = document.createElement('span');
         timeMeta.className = 'file-meta';
