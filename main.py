@@ -76,8 +76,7 @@ def upload_file_to_gcs(bucket, filename, file_obj):
         'file': {
             'name': filename,
             'size': blob.size,
-            'updated': blob.updated.isoformat() if blob.updated else None,
-            'download_url': _generate_download_url(blob)
+            'updated': blob.updated.isoformat() if blob.updated else None
         }
     }
 
@@ -96,8 +95,7 @@ def main(request):
                     file_list.append({
                         'name': blob.name,
                         'size': blob.size,
-                        'updated': blob.updated.isoformat() if blob.updated else None,
-                        'download_url': _generate_download_url(blob)
+                        'updated': blob.updated.isoformat() if blob.updated else None
                     })
 
                 # 依上傳時間排序，最新的在最前面
@@ -107,6 +105,20 @@ def main(request):
 
             except Exception as e:
                 return (json.dumps({'error': f'無法讀取檔案清單: {str(e)}'}), 500, {'Content-Type': 'application/json'})
+        elif request.args.get('action') == 'get_url':
+            filename = request.args.get('filename', '').strip()
+            if not filename:
+                return (json.dumps({'error': '缺少檔案名稱'}), 400, {'Content-Type': 'application/json'})
+
+            blob = bucket.blob(filename)
+            if not blob.exists():
+                return (json.dumps({'error': '檔案不存在'}), 404, {'Content-Type': 'application/json'})
+
+            try:
+                download_url = _generate_download_url(blob)
+                return (json.dumps({'download_url': download_url}), 200, {'Content-Type': 'application/json'})
+            except Exception as e:
+                return (json.dumps({'error': f'無法生成下載連結: {str(e)}'}), 500, {'Content-Type': 'application/json'})
 
         return (get_html_content(), 200, {'Content-Type': 'text/html; charset=utf-8'})
 
