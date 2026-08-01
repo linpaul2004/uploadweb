@@ -39,8 +39,17 @@
             font-size: 15px;
             border-radius: 4px;
             cursor: pointer;
+            transition: all 0.2s ease-in-out;
         }
-        button:hover { background-color: #1557b0; }
+        button:hover {
+            background-color: #1557b0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        button:active {
+            background-color: #174ea6;
+            transform: scale(0.96);
+            box-shadow: none;
+        }
         #result { margin-top: 20px; padding: 10px; border-radius: 4px; display: none; }
         .success { background-color: #e6f4ea; color: #137333; border: 1px solid #ceedd5; }
         .error { background-color: #fce8e6; color: #c5221f; border: 1px solid #fad2cf; }
@@ -62,6 +71,45 @@
             margin-top: 10px;
             font-size: 13px;
             color: #444;
+        }
+
+        /* Refresh Button */
+        .refresh-btn {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 40px;
+            height: 40px;
+            background-color: #ffffff;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* 1. 滑鼠移過去 (Hover) 的變化 */
+        .refresh-btn:hover {
+            background-color: #f8f9fa;
+            border-color: #1a73e8;
+        }
+
+        /* 2. 點擊按下 (Active) 的變化 */
+        .refresh-btn:active {
+            background-color: #e8f0fe;
+            transform: scale(0.92);
+        }
+
+        .refresh-btn svg {
+            width: 22px;
+            height: 22px;
+            color: #1a73e8;
+            transition: transform 0.4s ease;
+        }
+
+        /* 3. 點擊按下時，裡面的 SVG 圖示會旋轉 */
+        .refresh-btn:active svg {
+            transform: rotate(180deg);
         }
 
         .file-list-header {
@@ -199,6 +247,13 @@
 <div class="container">
     <div class="file-list-header">
         <h3 style="margin-bottom: 0;">已上傳檔案清單</h3>
+        <!-- 正方形的重新整理按鈕 -->
+        <button type="button" class="refresh-btn" id="refreshBtn" title="重新整理" onclick="fetchFileList()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+            </svg>
+        </button>
     </div>
 
     <div class="alert-box">
